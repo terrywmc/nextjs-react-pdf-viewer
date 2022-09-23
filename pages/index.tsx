@@ -1,9 +1,87 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
-import Image from 'next/image'
-import styles from '../styles/Home.module.css'
+import Head from "next/head";
+import styles from "../styles/Home.module.css";
+import { Document, Page, pdfjs } from "react-pdf";
+import * as fs from "fs";
+import * as path from "path";
+import { useMemo, useRef, useState } from "react";
+import React from "react";
+import { NextPage } from "next";
+import "remixicon/fonts/remixicon.css";
 
-const Home: NextPage = () => {
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
+
+interface HomePageProps {
+  data: string;
+}
+
+const Home: NextPage<HomePageProps> = ({ data }: HomePageProps) => {
+  const [numPages, setNumPages] = useState<number>(0);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [scale, setSacle] = useState<number>(1);
+  const [rotate, setRotation] = useState<number>(0);
+
+  const memoPdfDoc = useMemo(
+    () => ({
+      data: new Uint8Array(Buffer.from(data, "base64")),
+    }),
+    [data]
+  );
+
+  const onDocumentLoadSuccess = ({ numPages }: any) => {
+    setNumPages(numPages);
+  };
+
+  const firstPage = () => {
+    setPageNumber(1);
+  };
+
+  const lastPage = () => {
+    setPageNumber(numPages);
+  };
+
+  const nextPage = () => {
+    if (pageNumber < numPages) {
+      setPageNumber(pageNumber + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (pageNumber > 1) {
+      setPageNumber(pageNumber - 1);
+    }
+  };
+
+  const handleChangePage = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setPageNumber(Number(e.target.value));
+  };
+
+  const zoomIn = () => {
+    if (Math.min(0.5, Math.max(2, scale))) {
+      setSacle(scale + 0.5);
+    }
+  };
+
+  const zoomOut = () => {
+    if (Math.min(0.5, Math.max(2, scale))) {
+      setSacle(scale - 0.5);
+    }
+  };
+
+  const rotateRight = () => {
+    if (rotate === 360) {
+      setRotation(0);
+    } else {
+      setRotation(rotate + 90);
+    }
+  };
+  const rotateLeft = () => {
+    if (rotate === 0) {
+      setRotation(270);
+    } else {
+      setRotation(rotate - 90);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <Head>
@@ -12,61 +90,81 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.tsx</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
-          >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h2>Deploy &rarr;</h2>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+      <main
+        className={styles.main}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className={styles.header}>
+          <div className={styles.headerButton}>
+            <span>
+              <select onChange={handleChangePage} value={pageNumber}>
+                {Array.from(Array(numPages).keys()).map((i) => (
+                  <option key={i + 1}>{i + 1}</option>
+                ))}
+              </select>
+              / {numPages}
+            </span>
+            <button onClick={firstPage} disabled={pageNumber === 1}>
+              <i className="ri-rewind-line"></i>
+            </button>
+            <button onClick={prevPage} disabled={pageNumber === 1}>
+              <i className="ri-skip-back-line"></i>
+            </button>
+            <button onClick={nextPage} disabled={pageNumber === numPages}>
+              <i className="ri-skip-forward-line"></i>
+            </button>
+            <button onClick={lastPage} disabled={pageNumber === numPages}>
+              <i className="ri-speed-line"></i>
+            </button>
+            <button onClick={zoomIn} disabled={scale === 2}>
+              <i className="ri-zoom-in-line"></i>
+            </button>
+            <button onClick={zoomOut} disabled={scale === 0.5}>
+              <i className="ri-zoom-out-line"></i>
+            </button>
+            <button onClick={rotateLeft}>
+              <i className="ri-anticlockwise-line"></i>
+            </button>
+            <button onClick={rotateRight}>
+              <i className="ri-clockwise-line"></i>
+            </button>
+          </div>
+        </div>
+        <div className={styles.wrapper}>
+          <div className={styles.content}>
+            <Document
+              file={memoPdfDoc}
+              onLoadSuccess={(pdf) => onDocumentLoadSuccess(pdf)}
+            >
+              {Array.apply(null, Array(numPages))
+                .map((_x, i) => i + 1)
+                .map((page) => (
+                  <div
+                    key={page}
+                    style={page === pageNumber ? {} : { display: "none" }}
+                  >
+                    <Page pageNumber={page} scale={scale} rotate={rotate} />
+                  </div>
+                ))}
+            </Document>
+          </div>
         </div>
       </main>
-
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <span className={styles.logo}>
-            <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-          </span>
-        </a>
-      </footer>
     </div>
-  )
+  );
+};
+
+export async function getStaticProps() {
+  // get pdf and pass a string to props, bad performance as buffer string exceeding the threshold, just for demo
+  const pdfFilePath = path.resolve(process.cwd(), "pdfs", "sample.pdf");
+  const buff = await fs.readFileSync(pdfFilePath);
+  const dataString = Buffer.from(buff).toString("base64");
+
+  return {
+    props: {
+      data: dataString,
+    }, // will be passed to the page component as props
+  };
 }
 
-export default Home
+export default Home;
